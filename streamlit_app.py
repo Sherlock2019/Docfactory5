@@ -13,7 +13,7 @@ st.set_page_config(page_title="🧩 Smart Docx Filler", layout="wide")
 st.title("📄📊 Smart Placeholder Filler for DOCX & PPTX")
 
 # Define text-only fields
-TEXT_ONLY_PLACEHOLDERS = {"CUSTOMER_NAME", "SA-NAME", "SA_EMAIL", "RAX_TEAM", "PARTNER_NAME"}
+TEXT_ONLY_PLACEHOLDERS = {"CUSTOMER_NAME","CITY NAME", "PARTNER_NAME","SA-NAME", "SA_EMAIL", "RAX_TEAM"}
 today = date.today().strftime("%Y%m%d")
 
 # Upload template
