@@ -19,13 +19,13 @@ with st.expander("ℹ️ Quick Steps to Use This App", expanded=True):
     5. Download your filled .docx or .pptx file.
     """)
 
-# Step 1: Upload template and select document type
+# Step 1: Upload template and choose document type
 template_file = st.file_uploader("📁 Upload a .docx or .pptx template", type=["docx", "pptx"])
 doc_type = st.selectbox("📄 Select Type of Document", ["Solution Proposal", "Cloud Assessment Report/ Presentation", "Migration Plan", "Review"])
 today = date.today().strftime("%Y%m%d")
-customer_name = st.text_input("👤 Customer Name")  # ✅ Fix: define before usage
+customer_name = st.text_input("👤 Customer Name")
 
-# List of placeholders that use text box input only
+# Define placeholders that only accept text input
 TEXT_ONLY_PLACEHOLDERS = {
     "CUSTOMER_NAME", "CITY NAME", "SA-NAME", "SA_EMAIL", "RAX_TEAM", "PARTNER_NAME"
 }
@@ -33,9 +33,9 @@ TEXT_ONLY_PLACEHOLDERS = {
 if template_file and customer_name:
     is_docx = template_file.name.endswith(".docx")
     is_pptx = template_file.name.endswith(".pptx")
-
-    # Extract all text from the document
     text_blocks = []
+
+    # Extract text from template
     if is_docx:
         doc = Document(template_file)
         text_blocks = [para.text for para in doc.paragraphs]
@@ -46,27 +46,27 @@ if template_file and customer_name:
                 if hasattr(shape, "text"):
                     text_blocks.append(shape.text)
 
-    # Detect placeholders
-    full_text = "\n".join(text_blocks)
-    placeholders = list(dict.fromkeys(re.findall(r"\{[^}]+\}", full_text)))
+    # Detect and normalize placeholders
+    raw_placeholders = re.findall(r"\{[^}]+\}", "\n".join(text_blocks))
+    placeholders = list(dict.fromkeys([f"{{{ph.strip('{}').strip()}}}" for ph in raw_placeholders]))
     st.markdown("### 🔍 Detected Placeholders")
     st.write(placeholders)
 
     uploads = {}
 
-    # Step 2: Text-only key fields (ordered and grouped)
+    # Step 2: Text-only fields first
     st.markdown("### ✏️ Enter Values for Key Fields")
     for key in ["CUSTOMER_NAME", "SA-NAME", "SA_EMAIL", "RAX_TEAM", "PARTNER_NAME"]:
         ph = f"{{{key}}}"
-        if key in TEXT_ONLY_PLACEHOLDERS and ph in placeholders:
-            user_input = st.text_input(f"✏️ {ph}", key=f"text_{key}")
-            if user_input.strip():
-                uploads[ph] = user_input.strip()
+        if ph in placeholders:
+            value = st.text_input(f"✏️ {ph}", key=f"text_{key}")
+            if value.strip():
+                uploads[ph] = value.strip()
 
-    # Step 3: All other fields (only show those not in TEXT_ONLY_PLACEHOLDERS)
+    # Step 3: All other placeholders
     st.markdown("### 📎 Upload Files or Enter Text for Remaining Placeholders")
     for ph in placeholders:
-        base_ph = ph.strip("{}")
+        base_ph = ph.strip("{}").strip()
         if base_ph not in TEXT_ONLY_PLACEHOLDERS:
             clean_key = base_ph.replace(" ", "_")
             col1, col2 = st.columns(2)
@@ -91,7 +91,7 @@ if template_file and customer_name:
             if content:
                 uploads[ph] = content
 
-    # Step 4: Generate and download output
+    # Step 4: Replace and export
     if uploads:
         final_filename = f"{customer_name}_{doc_type.replace(' ', '_')}_{today}"
         buffer = BytesIO()
