@@ -13,16 +13,17 @@ st.title("📄📊 Dynamic Placeholder Filler for DOCX & PPTX")
 with st.expander("ℹ️ Quick Steps to Use This App", expanded=True):
     st.markdown("""
     1. **Upload your template** (.docx or .pptx) containing `{placeholders}`.
-    2. Select the document type.
+    2. Select the document type and enter the customer name.
     3. Fill in key text fields like `{CUSTOMER_NAME}`, `{SA_EMAIL}`, etc.
     4. Upload or type values for the remaining placeholders.
     5. Download your filled .docx or .pptx file.
     """)
 
-# Step 1: Upload template and choose document type
+# Step 1: Upload template and select document type
 template_file = st.file_uploader("📁 Upload a .docx or .pptx template", type=["docx", "pptx"])
 doc_type = st.selectbox("📄 Select Type of Document", ["Solution Proposal", "Cloud Assessment Report/ Presentation", "Migration Plan", "Review"])
 today = date.today().strftime("%Y%m%d")
+customer_name = st.text_input("👤 Customer Name")  # ✅ Fix: define before usage
 
 # List of placeholders that use text box input only
 TEXT_ONLY_PLACEHOLDERS = {
