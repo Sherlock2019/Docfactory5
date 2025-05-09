@@ -9,21 +9,18 @@ from datetime import date
 st.set_page_config(page_title="🧩 Placeholder Filler", layout="wide")
 st.title("📄📊 Dynamic Placeholder Filler for DOCX & PPTX")
 
-# Step 1: Upload template
+# Upload your template
 template_file = st.file_uploader("Upload a .docx or .pptx template", type=["docx", "pptx"])
 customer_name = st.text_input("Customer Name")
 doc_type = st.selectbox("Type of Document", ["Proposal", "Report", "Migration Plan", "Review"])
 today = date.today().strftime("%Y%m%d")
 
 if template_file and customer_name:
-    # Detect type
     is_docx = template_file.name.endswith(".docx")
     is_pptx = template_file.name.endswith(".pptx")
     text_blocks = []
-    doc = None
-    prs = None
 
-    # Extract text for placeholder detection
+    # Extract placeholders
     if is_docx:
         doc = Document(template_file)
         text_blocks = [para.text for para in doc.paragraphs]
@@ -34,16 +31,22 @@ if template_file and customer_name:
                 if hasattr(shape, "text"):
                     text_blocks.append(shape.text)
 
-    # Step 2: Detect placeholders
     full_text = "\n".join(text_blocks)
     placeholders = list(dict.fromkeys(re.findall(r"\{[^}]+\}", full_text)))
-    st.write("🔍 Detected placeholders:", placeholders)
+    st.markdown("### 🔍 Detected placeholders")
+    st.write(placeholders)
 
-    # Step 3: Upload files for each placeholder
+    # Upload or manually input each placeholder value
     uploads = {}
     for ph in placeholders:
-        key = ph.strip("{}").replace(" ", "_")
-        file = st.file_uploader(f"Upload file for {ph}", type=["txt", "docx", "xlsx"], key=key)
+        clean_key = ph.strip("{}").replace(" ", "_")
+        col1, col2 = st.columns(2)
+        with col1:
+            file = st.file_uploader(f"Upload file for {ph}", type=["txt", "docx", "xlsx"], key=clean_key)
+        with col2:
+            manual = st.text_area(f"Or manually enter value for {ph}", height=100, key=f"text_{clean_key}")
+
+        content = ""
         if file:
             if file.name.endswith(".txt"):
                 content = file.read().decode("utf-8")
@@ -53,11 +56,13 @@ if template_file and customer_name:
             elif file.name.endswith(".xlsx"):
                 df = pd.read_excel(file)
                 content = df.to_string(index=False)
-            else:
-                content = ""
+        elif manual.strip():
+            content = manual.strip()
+
+        if content:
             uploads[ph] = content
 
-    # Step 4: Replace placeholders and allow download
+    # Final replacement
     if uploads:
         final_filename = f"{customer_name}_{doc_type.replace(' ', '_')}_{today}"
         buffer = BytesIO()
@@ -89,4 +94,3 @@ if template_file and customer_name:
                 file_name=final_filename + ".pptx",
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
-
