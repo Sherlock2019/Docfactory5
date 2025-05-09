@@ -12,11 +12,11 @@ import os
 st.set_page_config(page_title="🧩 Smart Docx Filler", layout="wide")
 st.title("📄📊 Smart Placeholder Filler for DOCX & PPTX")
 
-# Define placeholder types
+# Define text-only fields
 TEXT_ONLY_PLACEHOLDERS = {"CUSTOMER_NAME", "SA-NAME", "SA_EMAIL", "RAX_TEAM", "PARTNER_NAME"}
 today = date.today().strftime("%Y%m%d")
 
-# Upload template + inputs
+# Upload template
 template_file = st.file_uploader("📁 Upload a DOCX or PPTX template", type=["docx", "pptx"])
 doc_type = st.selectbox("📄 Type of Document", ["Solution Proposal", "Migration Plan", "Report", "Presentation"])
 customer_name = st.text_input("👤 Customer Name")
@@ -26,7 +26,7 @@ if template_file and customer_name:
     is_pptx = template_file.name.endswith(".pptx")
     uploads = {}
 
-    # Extract all text from template
+    # Extract template text
     text_blocks = []
     if is_docx:
         doc = Document(template_file)
@@ -50,20 +50,22 @@ if template_file and customer_name:
             if val.strip():
                 uploads[ph] = val.strip()
 
-    # Step 2: upload/textarea fields
-    st.markdown("### 📎 Upload Files or Enter Text for All Other Placeholders")
+    # Step 2: upload or text for all other fields
+    st.markdown("### 📎 Upload Files or Enter Text for Other Placeholders")
     for ph in placeholders:
         base = ph.strip("{}").strip()
         if base not in TEXT_ONLY_PLACEHOLDERS:
             col1, col2 = st.columns(2)
             with col1:
-                file = st.file_uploader(f"📎 Upload for {ph}", type=None, key=f"file_{base}")
+                st.markdown("*Supported: .docx, .txt, .xlsx, .pptx, .jpg, .png*")
+                file = st.file_uploader(f"📎 Upload for {ph}", type=["docx", "txt", "xlsx", "pptx", "jpg", "jpeg", "png"], key=f"file_{base}")
             with col2:
                 text = st.text_area(f"✏️ Or enter value for {ph}", key=f"text_{base}")
             if file:
                 ext = file.name.lower().split(".")[-1]
                 if ext in ["jpg", "jpeg", "png"]:
-                    uploads[ph] = file
+                    img_bytes = BytesIO(file.read())
+                    uploads[ph] = img_bytes
                 elif ext == "xlsx":
                     df = pd.read_excel(file)
                     uploads[ph] = df
@@ -80,7 +82,7 @@ if template_file and customer_name:
             elif text.strip():
                 uploads[ph] = text.strip()
 
-    # Step 3: generate button
+    # Step 3: generate output
     if st.button("🛠️ Generate Document"):
         final_filename = f"{customer_name}_{doc_type.replace(' ', '_')}_{today}"
         buffer = BytesIO()
@@ -93,8 +95,9 @@ if template_file and customer_name:
                         para.text = para.text.replace(ph, "")
                         run = para.add_run()
                         if isinstance(val, BytesIO):
+                            val.seek(0)
                             with NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-                                tmp.write(val.getbuffer())
+                                tmp.write(val.read())
                                 tmp.flush()
                                 run.add_picture(tmp.name, width=Inches(4))
                                 os.unlink(tmp.name)
