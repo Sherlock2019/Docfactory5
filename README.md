@@ -28,9 +28,6 @@ A flexible Streamlit app that lets you dynamically fill placeholders in Word or 
 🧩 Example Use Case
 Upload a Word proposal template like:
 
-css
-Copy
-Edit
 Dear {CUSTOMER_NAME},
 
 Attached is the network overview for {CITY NAME}:
@@ -40,6 +37,8 @@ Attached is the network overview for {CITY NAME}:
 Here is the proposed resource table:
 
 {NET_ALLOCATION_TABLE}
+
+
 And generate:
 
 Images in place of {NETWORK_DIAGRAM}
@@ -57,15 +56,13 @@ Format	Behavior
 .jpg/.png	Embeds image into the document
 
 🛠 Getting Started
+
+🛠 Getting Started
 🔧 Install requirements
-bash
-Copy
-Edit
+
 pip install -r requirements.txt
 ▶️ Run the app
-bash
-Copy
-Edit
+
 streamlit run streamlit_app.py
 🗃 Requirements
 nginx
@@ -80,11 +77,9 @@ Pillow
 📌 Customization
 To handle a placeholder as text-only input, just add it to the list:
 
-python
-Copy
-Edit
 TEXT_ONLY_PLACEHOLDERS = {
     "CUSTOMER_NAME", "CITY NAME", "SA-NAME", "SA_EMAIL", "RAX_TEAM", "PARTNER_NAME"
 }
+
 📃 License
 MIT License © 2024 Dzoan Tran
