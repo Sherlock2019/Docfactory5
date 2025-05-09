@@ -13,32 +13,28 @@ st.title("📄📊 Dynamic Placeholder Filler for DOCX & PPTX")
 with st.expander("ℹ️ Quick Steps to Use This App", expanded=True):
     st.markdown("""
     1. **Upload your template** (.docx or .pptx) containing `{placeholders}`.
-    2. The app will **automatically detect all placeholders** like `{CUSTOMER_NAME}`, `{PROJECT OVERVIEW}`, etc.
-    3. For each placeholder:
-       - If it's a short field like `{CUSTOMER_NAME}`, enter it directly in the text box.
-       - For others, you can either **upload a file** (`.txt`, `.docx`, `.xlsx`) or **type the value** manually.
-    4. Once all placeholders are filled, the app will generate a final Word or PowerPoint file.
-    5. **Download the result** using the provided button. The file will be named like:  
-       `CustomerName.TypeOfDoc.Date.docx`
+    2. Select the document type.
+    3. Fill in key text fields like `{CUSTOMER_NAME}`, `{SA_EMAIL}`, etc.
+    4. Upload or type values for the remaining placeholders.
+    5. Download your filled .docx or .pptx file.
     """)
 
-# ✏️ Placeholders that should only use text input
+# Step 1: Upload template and choose document type
+template_file = st.file_uploader("📁 Upload a .docx or .pptx template", type=["docx", "pptx"])
+doc_type = st.selectbox("📄 Select Type of Document", ["Solution Proposal", "Cloud Assessment Report/ Presentation", "Migration Plan", "Review"])
+today = date.today().strftime("%Y%m%d")
+
+# List of placeholders that use text box input only
 TEXT_ONLY_PLACEHOLDERS = {
     "CUSTOMER_NAME", "CITY NAME", "SA-NAME", "SA_EMAIL", "RAX_TEAM", "PARTNER_NAME"
 }
 
-# Upload template
-template_file = st.file_uploader("📁 Upload a .docx or .pptx template", type=["docx", "pptx"])
-customer_name = st.text_input("👤 Customer Name")
-doc_type = st.selectbox("🧾 Type of Document", ["Proposal", "Report", "Migration Plan", "Review"])
-today = date.today().strftime("%Y%m%d")
-
 if template_file and customer_name:
     is_docx = template_file.name.endswith(".docx")
     is_pptx = template_file.name.endswith(".pptx")
-    text_blocks = []
 
-    # Extract text from the template
+    # Extract all text from the document
+    text_blocks = []
     if is_docx:
         doc = Document(template_file)
         text_blocks = [para.text for para in doc.paragraphs]
@@ -57,18 +53,16 @@ if template_file and customer_name:
 
     uploads = {}
 
-    # Step 1: Show only text input placeholders at the top
-    if any(ph.strip("{}") in TEXT_ONLY_PLACEHOLDERS for ph in placeholders):
-        st.markdown("### ✏️ Enter Values for Key Fields")
-        for ph in placeholders:
-            base_ph = ph.strip("{}")
-            if base_ph in TEXT_ONLY_PLACEHOLDERS:
-                clean_key = base_ph.replace(" ", "_")
-                manual = st.text_input(f"✏️ {ph}", key=f"text_{clean_key}")
-                if manual.strip():
-                    uploads[ph] = manual.strip()
+    # Step 2: Text-only key fields (ordered and grouped)
+    st.markdown("### ✏️ Enter Values for Key Fields")
+    for key in ["CUSTOMER_NAME", "SA-NAME", "SA_EMAIL", "RAX_TEAM", "PARTNER_NAME"]:
+        ph = f"{{{key}}}"
+        if key in TEXT_ONLY_PLACEHOLDERS and ph in placeholders:
+            user_input = st.text_input(f"✏️ {ph}", key=f"text_{key}")
+            if user_input.strip():
+                uploads[ph] = user_input.strip()
 
-    # Step 2: Show upload + manual fields for remaining placeholders
+    # Step 3: All other fields (only show those not in TEXT_ONLY_PLACEHOLDERS)
     st.markdown("### 📎 Upload Files or Enter Text for Remaining Placeholders")
     for ph in placeholders:
         base_ph = ph.strip("{}")
@@ -76,7 +70,7 @@ if template_file and customer_name:
             clean_key = base_ph.replace(" ", "_")
             col1, col2 = st.columns(2)
             with col1:
-                file = st.file_uploader(f"📎 Upload file for {ph}", type=["txt", "docx", "xlsx"], key=clean_key)
+                file = st.file_uploader(f"📎 Upload file for {ph}", type=["txt", "docx", "xlsx"], key=f"file_{clean_key}")
             with col2:
                 manual = st.text_area(f"✏️ Or manually enter value for {ph}", height=100, key=f"text_{clean_key}")
 
@@ -96,7 +90,7 @@ if template_file and customer_name:
             if content:
                 uploads[ph] = content
 
-    # Step 3: Replace placeholders and generate download
+    # Step 4: Generate and download output
     if uploads:
         final_filename = f"{customer_name}_{doc_type.replace(' ', '_')}_{today}"
         buffer = BytesIO()
