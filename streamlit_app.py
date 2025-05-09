@@ -1,48 +1,36 @@
 import streamlit as st
 from docx import Document
 from pptx import Presentation
+from docx.shared import Inches
 import pandas as pd
 import re
 from io import BytesIO
+from tempfile import NamedTemporaryFile
 from datetime import date
+import os
 
-st.set_page_config(page_title="🧩 Placeholder Filler", layout="wide")
-st.title("📄📊 Dynamic Placeholder Filler for DOCX & PPTX")
+st.set_page_config(page_title="🧩 Smart Docx Filler", layout="wide")
+st.title("📄📊 Smart Placeholder Filler for DOCX & PPTX")
 
-# 🚀 Quick Start Guide
-with st.expander("ℹ️ Quick Steps to Use This App", expanded=True):
-    st.markdown("""
-    1. **Upload your template** (.docx or .pptx) containing `{placeholders}`.
-    2. Select the document type and customer name.
-    3. Fill in key fields like `{CUSTOMER_NAME}`, `{SA_EMAIL}`, etc.
-    4. Upload or enter content for all remaining placeholders.
-    5. Click "Generate Document" to download the filled file.
-    """)
-
-# Step 1: Upload template and doc type
-template_file = st.file_uploader("📁 Upload a .docx or .pptx template", type=["docx", "pptx"])
-doc_type = st.selectbox("📄 Select Type of Document", ["Solution Proposal", "Cloud Assessment Report/ Presentation", "Migration Plan", "Review"])
+# Define placeholder types
+TEXT_ONLY_PLACEHOLDERS = {"CUSTOMER_NAME", "SA-NAME", "SA_EMAIL", "RAX_TEAM", "PARTNER_NAME"}
 today = date.today().strftime("%Y%m%d")
+
+# Upload template + inputs
+template_file = st.file_uploader("📁 Upload a DOCX or PPTX template", type=["docx", "pptx"])
+doc_type = st.selectbox("📄 Type of Document", ["Solution Proposal", "Migration Plan", "Report", "Presentation"])
 customer_name = st.text_input("👤 Customer Name")
-
-# Placeholder rules
-TEXT_ONLY_PLACEHOLDERS = {
-    "CUSTOMER_NAME", "CITY NAME", "SA-NAME", "SA_EMAIL", "RAX_TEAM", "PARTNER_NAME"
-}
-
-DIAGRAM_PLACEHOLDERS = {
-    "NETWORK_DIAGRAM", "ARCHITECTURE", "Gov_Diagram", "Arch_diagram", "INFRA_MAP"
-}
 
 if template_file and customer_name:
     is_docx = template_file.name.endswith(".docx")
     is_pptx = template_file.name.endswith(".pptx")
-    text_blocks = []
+    uploads = {}
 
-    # Extract all template text
+    # Extract all text from template
+    text_blocks = []
     if is_docx:
         doc = Document(template_file)
-        text_blocks = [para.text for para in doc.paragraphs]
+        text_blocks = [p.text for p in doc.paragraphs]
     elif is_pptx:
         prs = Presentation(template_file)
         for slide in prs.slides:
@@ -50,90 +38,89 @@ if template_file and customer_name:
                 if hasattr(shape, "text"):
                     text_blocks.append(shape.text)
 
-    # Detect placeholders and normalize
     raw_placeholders = re.findall(r"\{[^}]+\}", "\n".join(text_blocks))
     placeholders = list(dict.fromkeys([f"{{{ph.strip('{}').strip()}}}" for ph in raw_placeholders]))
-    st.markdown("### 🔍 Detected Placeholders")
-    st.write(placeholders)
 
-    uploads = {}
-
-    # Step 2: Text-only fields
+    # Step 1: text-only fields
     st.markdown("### ✏️ Enter Values for Key Fields")
-    for key in TEXT_ONLY_PLACEHOLDERS:
-        ph = f"{{{key}}}"
-        if ph in placeholders:
-            value = st.text_input(f"✏️ {ph}", key=f"text_{key}")
-            if value.strip():
-                uploads[ph] = value.strip()
-
-    # Step 3: Upload / input for other fields
-    st.markdown("### 📎 Upload Files or Enter Text for Remaining Placeholders")
     for ph in placeholders:
-        base_ph = ph.strip("{}").strip()
-        if base_ph not in TEXT_ONLY_PLACEHOLDERS:
-            clean_key = base_ph.replace(" ", "_")
+        base = ph.strip("{}").strip()
+        if base in TEXT_ONLY_PLACEHOLDERS:
+            val = st.text_input(f"✏️ {ph}", key=f"text_{base}")
+            if val.strip():
+                uploads[ph] = val.strip()
+
+    # Step 2: upload/textarea fields
+    st.markdown("### 📎 Upload Files or Enter Text for All Other Placeholders")
+    for ph in placeholders:
+        base = ph.strip("{}").strip()
+        if base not in TEXT_ONLY_PLACEHOLDERS:
             col1, col2 = st.columns(2)
-
-            # Diagram placeholders: allow image/Visio
-            upload_types = ["txt", "docx", "xlsx"]
-            if base_ph in DIAGRAM_PLACEHOLDERS:
-                upload_types = ["jpg", "png", "vsdx"]
-
             with col1:
-                file = st.file_uploader(f"📎 Upload file for {ph}", type=upload_types, key=f"file_{clean_key}")
+                file = st.file_uploader(f"📎 Upload for {ph}", type=None, key=f"file_{base}")
             with col2:
-                manual = st.text_area(f"✏️ Or manually enter value for {ph}", height=100, key=f"text_{clean_key}")
-
-            content = ""
+                text = st.text_area(f"✏️ Or enter value for {ph}", key=f"text_{base}")
             if file:
-                if file.name.endswith((".txt", ".vsdx")):
-                    content = file.read().decode("utf-8", errors="ignore")
-                elif file.name.endswith(".docx"):
-                    d = Document(file)
-                    content = "\n".join([p.text for p in d.paragraphs])
-                elif file.name.endswith(".xlsx"):
+                ext = file.name.lower().split(".")[-1]
+                if ext in ["jpg", "jpeg", "png"]:
+                    uploads[ph] = file
+                elif ext == "xlsx":
                     df = pd.read_excel(file)
-                    content = df.to_string(index=False)
-                elif file.name.endswith((".jpg", ".png")):
-                    content = f"[Image: {file.name} uploaded]"  # Placeholder text, not actual image embedding
-            elif manual.strip():
-                content = manual.strip()
+                    uploads[ph] = df
+                elif ext == "docx":
+                    d = Document(file)
+                    uploads[ph] = "\n".join(p.text for p in d.paragraphs)
+                elif ext == "pptx":
+                    p = Presentation(file)
+                    uploads[ph] = "\n".join(shape.text for slide in p.slides for shape in slide.shapes if hasattr(shape, "text"))
+                elif ext == "txt":
+                    uploads[ph] = file.read().decode("utf-8")
+                else:
+                    uploads[ph] = f"[Unsupported file type: {file.name}]"
+            elif text.strip():
+                uploads[ph] = text.strip()
 
-            if content:
-                uploads[ph] = content
-
-    # Step 4: Generate button
+    # Step 3: generate button
     if st.button("🛠️ Generate Document"):
         final_filename = f"{customer_name}_{doc_type.replace(' ', '_')}_{today}"
         buffer = BytesIO()
 
         if is_docx:
+            doc = Document(template_file)
             for para in doc.paragraphs:
                 for ph, val in uploads.items():
                     if ph in para.text:
-                        para.text = para.text.replace(ph, val)
+                        para.text = para.text.replace(ph, "")
+                        run = para.add_run()
+                        if isinstance(val, BytesIO):
+                            with NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                                tmp.write(val.getbuffer())
+                                tmp.flush()
+                                run.add_picture(tmp.name, width=Inches(4))
+                                os.unlink(tmp.name)
+                        elif isinstance(val, pd.DataFrame):
+                            table = doc.add_table(rows=1, cols=len(val.columns))
+                            hdr_cells = table.rows[0].cells
+                            for i, col in enumerate(val.columns):
+                                hdr_cells[i].text = col
+                            for _, row in val.iterrows():
+                                row_cells = table.add_row().cells
+                                for i, cell in enumerate(row):
+                                    row_cells[i].text = str(cell)
+                        else:
+                            run.add_text(str(val))
             doc.save(buffer)
-            st.success("✅ Your DOCX file has been successfully generated!")
-            st.download_button(
-                label="📥 Download Filled DOCX",
-                data=buffer.getvalue(),
-                file_name=final_filename + ".docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            )
+            st.success("✅ DOCX generated!")
+            st.download_button("📥 Download DOCX", buffer.getvalue(), file_name=final_filename + ".docx")
 
         elif is_pptx:
+            prs = Presentation(template_file)
             for slide in prs.slides:
                 for shape in slide.shapes:
                     if hasattr(shape, "text"):
                         for ph, val in uploads.items():
                             if ph in shape.text:
-                                shape.text = shape.text.replace(ph, val)
+                                shape.text = shape.text.replace(ph, str(val))
             prs.save(buffer)
-            st.success("✅ Your PowerPoint file has been successfully generated!")
-            st.download_button(
-                label="📥 Download Filled PPTX",
-                data=buffer.getvalue(),
-                file_name=final_filename + ".pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
+            st.success("✅ PPTX generated!")
+            st.download_button("📥 Download PPTX", buffer.getvalue(), file_name=final_filename + ".pptx")
