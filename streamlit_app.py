@@ -37,7 +37,7 @@ today = date.today().strftime("%Y%m%d")
 
 # Upload template
 template_file = st.file_uploader("📁 Upload DOCX or PPTX template", type=["docx", "pptx"])
-doc_type = st.selectbox("📄 Type of Document", ["Solution Proposal", "Migration Plan", "Report", "Presentation"])
+doc_type = st.selectbox("📄 Type of Document", ["Solution Proposal", "Migration Plan", "Cloud Assessment Report", "Power Presentation"])
 customer_name = st.text_input("👤 Customer Name")
 
 if template_file and customer_name:
