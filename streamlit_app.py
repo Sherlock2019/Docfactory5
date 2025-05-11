@@ -30,14 +30,17 @@ with st.expander("ℹ️ How to Use This App", expanded=True):
     - Keep placeholder names clean and consistent.
     """)
 
+# Normalize text-only placeholders
 TEXT_ONLY_PLACEHOLDERS = {
     "CUSTOMER_NAME", "CITY NAME", "SA-NAME", "SA_EMAIL", "RAX_TEAM", "PARTNER_NAME"
 }
+TEXT_ONLY_PLACEHOLDERS = {ph.strip().upper() for ph in TEXT_ONLY_PLACEHOLDERS}
+
 today = date.today().strftime("%Y%m%d")
 
 # Upload template
 template_file = st.file_uploader("📁 Upload DOCX or PPTX template", type=["docx", "pptx"])
-doc_type = st.selectbox("📄 Type of Document", ["Solution Proposal", "Migration Plan", "Report", "Presentation"])
+doc_type = st.selectbox("📄 Type of Document", ["Solution Proposal", "Migration Plan", "CRA Report", "Power Presentation"])
 customer_name = st.text_input("👤 Customer Name")
 
 if template_file and customer_name:
@@ -60,19 +63,19 @@ if template_file and customer_name:
     raw_placeholders = re.findall(r"\{[^}]+\}", "\n".join(text_blocks))
     placeholders = list(dict.fromkeys([f"{{{ph.strip('{}').strip()}}}" for ph in raw_placeholders]))
 
-    # Step 1: Manual text input
+    # Step 1: Manual text input for key placeholders
     st.markdown("### ✏️ Enter Values for Key Fields")
     for ph in placeholders:
-        base = ph.strip("{}").strip()
+        base = ph.strip("{}").strip().upper()
         if base in TEXT_ONLY_PLACEHOLDERS:
             val = st.text_input(f"✏️ {ph}", key=f"text_{base}")
             if val.strip():
                 uploads[ph] = val.strip()
 
-    # Step 2: Uploads or text for remaining placeholders
+    # Step 2: Upload or manual input for other placeholders
     st.markdown("### 📎 Upload Files or Enter Text for Other Placeholders")
     for ph in placeholders:
-        base = ph.strip("{}").strip()
+        base = ph.strip("{}").strip().upper()
         if base not in TEXT_ONLY_PLACEHOLDERS:
             col1, col2 = st.columns(2)
             with col1:
