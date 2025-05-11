@@ -18,7 +18,7 @@ with st.expander("ℹ️ How to Use This App", expanded=True):
     **Steps to generate a DOCX or PPTX document:**
 
     1. Upload your `.docx` or `.pptx` template with `{placeholders}`.
-    2. Enter values for key fields like `{CUSTOMER_NAME}`, `{CITY NAME}`.
+    2. Enter values for key fields like `{CUSTOMER_NAME}`, `{CITY_NAME}`, `{SA_NAME}`.
     3. Upload files or type values for all other placeholders:
        - `.docx`, `.txt`, `.pptx`: Extracts and inserts text
        - `.xlsx`: Inserts as Word table
@@ -30,12 +30,11 @@ with st.expander("ℹ️ How to Use This App", expanded=True):
     - Keep placeholder names clean and consistent.
     """)
 
-# Normalize text-only placeholders
+# Define static text-only placeholders
 TEXT_ONLY_PLACEHOLDERS = {
-    "CUSTOMER_NAME", "CITY NAME", "SA-NAME", "SA_EMAIL", "RAX_TEAM", "PARTNER_NAME"
+    "CUSTOMER_NAME", "CITY_NAME", "SA-NAME", "SA_EMAIL", "RAX_TEAM", "PARTNER_NAME"
 }
 TEXT_ONLY_PLACEHOLDERS = {ph.strip().upper() for ph in TEXT_ONLY_PLACEHOLDERS}
-
 today = date.today().strftime("%Y%m%d")
 
 # Upload template
@@ -48,7 +47,7 @@ if template_file and customer_name:
     is_pptx = template_file.name.endswith(".pptx")
     uploads = {}
 
-    # Extract placeholders
+    # Extract placeholders from uploaded template
     text_blocks = []
     if is_docx:
         doc = Document(template_file)
@@ -63,55 +62,59 @@ if template_file and customer_name:
     raw_placeholders = re.findall(r"\{[^}]+\}", "\n".join(text_blocks))
     placeholders = list(dict.fromkeys([f"{{{ph.strip('{}').strip()}}}" for ph in raw_placeholders]))
 
-    # Step 1: Manual text input for key placeholders
+    # Step 1: Show input boxes for text-only fields
     st.markdown("### ✏️ Enter Values for Key Fields")
+    already_handled = set()
     for ph in placeholders:
         base = ph.strip("{}").strip().upper()
         if base in TEXT_ONLY_PLACEHOLDERS:
             val = st.text_input(f"✏️ {ph}", key=f"text_{base}")
+            already_handled.add(base)
             if val.strip():
                 uploads[ph] = val.strip()
 
-    # Step 2: Upload or manual input for other placeholders
+    # Step 2: Upload or enter text for remaining placeholders
     st.markdown("### 📎 Upload Files or Enter Text for Other Placeholders")
     for ph in placeholders:
         base = ph.strip("{}").strip().upper()
-        if base not in TEXT_ONLY_PLACEHOLDERS:
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown("*Supported: .docx, .txt, .xlsx, .pptx, .jpg, .png*")
-                file = st.file_uploader(
-                    f"📎 Upload for {ph}",
-                    type=["docx", "txt", "xlsx", "pptx", "jpg", "jpeg", "png"],
-                    key=f"file_{base}"
+        if base in already_handled:
+            continue  # skip already-handled text-only fields
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("*Supported: .docx, .txt, .xlsx, .pptx, .jpg, .png*")
+            file = st.file_uploader(
+                f"📎 Upload for {ph}",
+                type=["docx", "txt", "xlsx", "pptx", "jpg", "jpeg", "png"],
+                key=f"file_{base}"
+            )
+        with col2:
+            text = st.text_area(f"✏️ Or enter value for {ph}", key=f"text_{base}")
+
+        if file:
+            ext = file.name.lower().split(".")[-1]
+            if ext in ["jpg", "jpeg", "png"]:
+                img_bytes = BytesIO(file.read())
+                uploads[ph] = img_bytes
+            elif ext == "xlsx":
+                df = pd.read_excel(file)
+                uploads[ph] = df
+            elif ext == "docx":
+                d = Document(file)
+                uploads[ph] = "\n".join(p.text for p in d.paragraphs)
+            elif ext == "pptx":
+                p = Presentation(file)
+                uploads[ph] = "\n".join(
+                    shape.text for slide in p.slides for shape in slide.shapes if hasattr(shape, "text")
                 )
-            with col2:
-                text = st.text_area(f"✏️ Or enter value for {ph}", key=f"text_{base}")
+            elif ext == "txt":
+                uploads[ph] = file.read().decode("utf-8")
+            else:
+                uploads[ph] = f"[Unsupported file type: {file.name}]"
+        elif text.strip():
+            uploads[ph] = text.strip()
 
-            if file:
-                ext = file.name.lower().split(".")[-1]
-                if ext in ["jpg", "jpeg", "png"]:
-                    img_bytes = BytesIO(file.read())
-                    uploads[ph] = img_bytes
-                elif ext == "xlsx":
-                    df = pd.read_excel(file)
-                    uploads[ph] = df
-                elif ext == "docx":
-                    d = Document(file)
-                    uploads[ph] = "\n".join(p.text for p in d.paragraphs)
-                elif ext == "pptx":
-                    p = Presentation(file)
-                    uploads[ph] = "\n".join(
-                        shape.text for slide in p.slides for shape in slide.shapes if hasattr(shape, "text")
-                    )
-                elif ext == "txt":
-                    uploads[ph] = file.read().decode("utf-8")
-                else:
-                    uploads[ph] = f"[Unsupported file type: {file.name}]"
-            elif text.strip():
-                uploads[ph] = text.strip()
-
-    # Step 3: Generate output
+    # Step 3: Generate DOCX or PPTX
     if st.button("🛠️ Generate Document"):
         final_filename = f"{customer_name}_{doc_type.replace(' ', '_')}_{today}"
         buffer = BytesIO()
