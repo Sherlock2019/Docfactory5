@@ -32,7 +32,7 @@ with st.expander("ℹ️ How to Use This App", expanded=True):
 
 # Define static text-only placeholders
 TEXT_ONLY_PLACEHOLDERS = {
-    "CUSTOMER_NAME", "CITY_NAME", "SA-NAME", "SA_EMAIL", "RAX_TEAM", "PARTNER_NAME"
+    "CUSTOMER_NAME", "CITY_NAME", "SA_NAME", "SA_EMAIL", "RAX_TEAM", "PARTNER_NAME"
 }
 TEXT_ONLY_PLACEHOLDERS = {ph.strip().upper() for ph in TEXT_ONLY_PLACEHOLDERS}
 today = date.today().strftime("%Y%m%d")
