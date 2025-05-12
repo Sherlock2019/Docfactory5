@@ -30,14 +30,14 @@ with st.expander("ℹ️ How to Use This App", expanded=True):
     - Keep placeholder names clean and consistent.
     """)
 
-# Corrected key fields (use _ not -)
+# Define key text-only fields
 TEXT_ONLY_PLACEHOLDERS = {
     "CUSTOMER_NAME", "CITY_NAME", "SA_NAME", "SA_EMAIL", "RAX_TEAM", "PARTNER_NAME"
 }
 TEXT_ONLY_PLACEHOLDERS = {ph.strip().upper() for ph in TEXT_ONLY_PLACEHOLDERS}
 today = date.today().strftime("%Y%m%d")
 
-# Upload template
+# Upload template and document type
 template_file = st.file_uploader("📁 Upload DOCX or PPTX template", type=["docx", "pptx"])
 doc_type = st.selectbox("📄 Type of Document", ["Solution Proposal", "Migration Plan", "CRA Report", "Power Presentation"])
 customer_name = st.text_input("👤 Customer Name")
@@ -47,7 +47,7 @@ if template_file and customer_name:
     is_pptx = template_file.name.endswith(".pptx")
     uploads = {}
 
-    # Extract placeholders
+    # Read all text to detect placeholders
     text_blocks = []
     if is_docx:
         doc = Document(template_file)
@@ -62,7 +62,7 @@ if template_file and customer_name:
     raw_placeholders = re.findall(r"\{[^}]+\}", "\n".join(text_blocks))
     placeholders = list(dict.fromkeys([f"{{{ph.strip('{}').strip()}}}" for ph in raw_placeholders]))
 
-    # Step 1: Text input for key placeholders
+    # Step 1: Text input for key fields
     st.markdown("### ✏️ Enter Values for Key Fields")
     already_handled = set()
     for ph in placeholders:
@@ -73,7 +73,7 @@ if template_file and customer_name:
             if val.strip():
                 uploads[ph] = val.strip()
 
-    # Step 2: Upload or enter text for other placeholders
+    # Step 2: Upload or text input for other placeholders
     st.markdown("### 📎 Upload Files or Enter Text for Other Placeholders")
     for ph in placeholders:
         base = ph.strip("{}").strip().upper()
@@ -114,30 +114,28 @@ if template_file and customer_name:
         elif text.strip():
             uploads[ph] = text.strip()
 
-    # Step 3: Generate final document
+    # Step 3: Generate document
     if st.button("🛠️ Generate Document"):
         final_filename = f"{customer_name}_{doc_type.replace(' ', '_')}_{today}"
         buffer = BytesIO()
 
         if is_docx:
             doc = Document(template_file)
-            for para in doc.paragraphs:
-                for ph, val in uploads.items():
+            for ph, val in uploads.items():
+                for para in doc.paragraphs:
                     if ph in para.text:
-                        if isinstance(val, BytesIO):  # image
+                        if isinstance(val, BytesIO):  # Image
                             para.text = para.text.replace(ph, "")
                             val.seek(0)
                             with NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                                 tmp.write(val.read())
                                 tmp.flush()
-                                new_para = para.insert_paragraph_after()
-                                new_para.add_run().add_picture(tmp.name, width=Inches(4))
+                                doc.add_paragraph().add_run().add_picture(tmp.name, width=Inches(4))
                                 os.unlink(tmp.name)
 
-                        elif isinstance(val, pd.DataFrame):  # table
+                        elif isinstance(val, pd.DataFrame):  # Table
                             para.text = para.text.replace(ph, "")
-                            new_para = para.insert_paragraph_after()
-                            table = new_para.insert_table(rows=1, cols=len(val.columns))
+                            table = doc.add_table(rows=1, cols=len(val.columns))
                             hdr_cells = table.rows[0].cells
                             for i, col in enumerate(val.columns):
                                 hdr_cells[i].text = str(col)
@@ -146,7 +144,7 @@ if template_file and customer_name:
                                 for i, cell in enumerate(row):
                                     row_cells[i].text = str(cell)
 
-                        else:  # plain text
+                        else:  # Text
                             para.text = para.text.replace(ph, str(val))
 
             doc.save(buffer)
